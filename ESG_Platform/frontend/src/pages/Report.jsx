@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
-import { getReport, socket } from "../services/api";
+import { getReport, getUsersList, socket } from "../services/api";
 
 export default function Report() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchReport = () => {
-    getReport()
+  const [users, setUsers] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+
+  const currentUserRole = localStorage.getItem("role") || "user"; 
+  const isAdmin = currentUserRole === "admin";
+
+  const fetchReport = (userIdToFetch) => {
+    setLoading(true);
+    getReport(userIdToFetch)
       .then(res => {
         setReport(res.data);
         setLoading(false);
@@ -18,17 +25,23 @@ export default function Report() {
   };
 
   useEffect(() => {
-    fetchReport();
+    fetchReport(selectedUserId);
+
+    if (isAdmin) {
+      getUsersList()
+        .then(res => setUsers(res.data))
+        .catch(err => console.error('Error fetching users list:', err));
+    }
 
     // Listen for new activities to update report in real-time
     socket.on('activityAdded', () => {
-      fetchReport();
+      fetchReport(selectedUserId);
     });
 
     return () => {
       socket.off('activityAdded');
     };
-  }, []);
+  }, [selectedUserId,isAdmin]);
 
   if (loading) {
     return (
@@ -57,11 +70,38 @@ export default function Report() {
 
   return (
     <div className="space-y-8">
-      <div className="rounded-3xl bg-white p-8 shadow-xl ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-700">
+
+      {isAdmin && (
+        <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-4 dark:bg-indigo-900/30 dark:border-indigo-800/50 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm transition-all">
+          <label className="text-sm font-semibold text-indigo-800 dark:text-indigo-300 whitespace-nowrap">
+            Admin View: Select User Report
+          </label>
+          <select 
+            value={selectedUserId}
+            onChange={(e) => setSelectedUserId(e.target.value)}
+            className="w-full max-w-xs px-3 py-2 rounded-xl border border-indigo-200 bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+          >
+            <option value="">Overview (Global Aggregate)</option>
+            {users.map(u => (
+              <option key={u.id} value={u.id}>
+                {u.name} ({u.email})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="rounded-3xl bg-white p-8 shadow-xl ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-700 transition-all">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold text-green-600 dark:text-green-400">ESG Reporting</p>
-            <h1 className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">Executive sustainability scorecard</h1>
+            
+            {/* 2. UPDATED: DYNAMIC TITLE */}
+            <h1 className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
+              {isAdmin && selectedUserId 
+                ? "Client sustainability scorecard" 
+                : "Executive sustainability scorecard"}
+            </h1>
             <p className="mt-3 text-gray-600 dark:text-gray-400 max-w-2xl">
               A snapshot of your emissions performance and priority actions for the upcoming quarter.
             </p>

@@ -34,7 +34,11 @@ export const getSuppliers = () => apiClient.get(`/suppliers`);
 export const simulateScenario = (percent, scenarioId) =>
   apiClient.post(`/scenario`, { percent, scenarioId });
 
-export const getReport = () => apiClient.get(`/report`);
+export const getReport = (userId=null) => {
+  const params = userId ? { userId } : {};
+  return apiClient.get(`/report`, { params });
+}
+export const getUsersList = () => apiClient.get(`/users/list`);
 
 export const addActivity = (activity) =>
   apiClient.post(`/activities`, activity);
