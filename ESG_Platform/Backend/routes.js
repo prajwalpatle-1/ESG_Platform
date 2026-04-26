@@ -49,9 +49,15 @@ router.post("/signup", signup);
 
 // protected routes
 // dashboard data - requires authentication
+// dashboard data - requires authentication
 router.get("/dashboard", verifyToken, async (req, res) => {
   try {
-    const activityData = await getActivityData();
+    const isAdmin = req.user.role === 'admin';
+    // If they are admin, fetch all (null). If normal user, fetch only theirs!
+    const userIdToFetch = isAdmin ? null : req.user.id;
+
+    // Pass the ID to getActivityData!
+    const activityData = await getActivityData(userIdToFetch);
     const calculated = await calculateAll(activityData);
     const totals = calculateTotals(calculated);
 
@@ -60,14 +66,14 @@ router.get("/dashboard", verifyToken, async (req, res) => {
       totals
     });
   } catch (error) {
-    console.error(error);
+    console.error("Dashboard Error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
 router.post("/activities", verifyToken, async (req, res) => {
   try {
-    const activity = await addActivity(req.body);
+    const activity = await addActivity(req.body, req.user.id);
     const io = req.app.get('io');
     io.emit('activityAdded', activity);
     await addAuditLog({ action: 'add_activity', user_id: req.user.id, details: JSON.stringify(activity) });
@@ -235,10 +241,22 @@ router.post("/scenario", verifyToken, async (req, res) => {
 // report
 router.get("/report", verifyToken, async (req, res) => {
   try {
-    const reportData = await getReportSummary();
+    const isAdmin = req.user.role === 'admin';
+    const targetUserId = req.query.userId;
+
+    let userIdToFetch = null;
+
+    if (!isAdmin) {
+      userIdToFetch = req.user.id;
+    } else if (isAdmin && targetUserId) {
+      userIdToFetch = targetUserId;
+    }
+    
+    const reportData = await getReportSummary(userIdToFetch);
+
     res.json(reportData);
   } catch (error) {
-    console.error(error);
+    console.error("Report Fetch Error:", error);;
     res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -281,7 +299,11 @@ router.get("/emissions/anomalies", verifyToken, getAnomalies);
 router.get("/dashboard/emissions-trends", verifyToken, async (req, res) => {
   try {
     const { year } = req.query;
-    const trends = await getEmissionTrends(year);
+    const isAdmin = req.user.role === 'admin';
+    const userIdToFetch = isAdmin ? null : req.user.id; // <-- ADD THIS
+
+    // Pass the ID to the helper!
+    const trends = await getEmissionTrends(year, userIdToFetch);
     
     // Transform data for frontend
     const monthlyData = {};
@@ -316,7 +338,11 @@ router.get("/dashboard/emissions-trends", verifyToken, async (req, res) => {
 
 router.get("/dashboard/emissions-breakdown", verifyToken, async (req, res) => {
   try {
-    const breakdown = await getEmissionBreakdown();
+    const isAdmin = req.user.role === 'admin';
+    const userIdToFetch = isAdmin ? null : req.user.id; // <-- ADD THIS
+
+    // Pass the ID to the helper!
+    const breakdown = await getEmissionBreakdown(userIdToFetch);
     
     // Group by scope
     const scopeGroups = {};
@@ -346,7 +372,10 @@ router.get("/dashboard/emissions-breakdown", verifyToken, async (req, res) => {
 
 router.get("/dashboard/ai-predictions", verifyToken, async (req, res) => {
   try {
-    const predictions = await getAIPredictions();
+    const isAdmin = req.user.role === 'admin';
+    const userIdToFetch = isAdmin ? null : req.user.id; // <-- ADD THIS
+
+    const predictions = await getAIPredictions(userIdToFetch);
     
     // Calculate simple linear trend for next month prediction
     if (predictions.length >= 2) {

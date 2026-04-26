@@ -41,15 +41,23 @@ async function predictScope3Emission(value) {
   return await predictEmission(scope3Model, value, 'Scope 3');
 }
 
-async function detectScope3Anomalies() {
+async function detectScope3Anomalies(userId = null) {
   try {
-    // Get all scope 3 activities (handle various formats)
-    const result = await pool.query('SELECT * FROM activities WHERE activity_type LIKE \'scope3%\' OR activity_type IN (\'flight\', \'logistics\', \'supplier\')');
-    
+    let query = `
+      SELECT * FROM activities 
+      WHERE (activity_type LIKE 'scope3%' OR activity_type IN ('flight', 'logistics', 'supplier'))
+    `;
+    let values = [];
+
+    if (userId) {
+      query += ` AND user_id = $1`;
+      values.push(userId);
+    }
+
+    const result = await pool.query(query, values);
     if (result.rows.length === 0) {
       return [];
     }
-
     const data = result.rows.map(row => ({
       emission: parseFloat(row.value) * 0.15,
       value: parseFloat(row.value),

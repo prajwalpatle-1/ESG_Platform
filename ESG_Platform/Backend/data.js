@@ -32,8 +32,16 @@ const getEmissionFactors = async () => {
   }, {});
 };
 
-const getActivityData = async () => {
-  const result = await pool.query('SELECT * FROM activities');
+const getActivityData = async (userId = null) => {
+  let query = 'SELECT * FROM activities';
+  let values = [];
+
+  if (userId) {
+    query += ' WHERE user_id = $1';
+    values.push(userId);
+  }
+  query += ' ORDER BY created_at DESC';
+  const result = await pool.query(query, values);
   return result.rows;
 };
 
@@ -47,12 +55,16 @@ const getAuditLogs = async () => {
   return result.rows;
 };
 
-const addActivity = async (activity) => {
-  const { activity_type, value, date } = activity;
-  const result = await pool.query(
-    'INSERT INTO activities (activity_type, value, date) VALUES ($1, $2, $3) RETURNING *',
-    [activity_type, value, date]
-  );
+const addActivity = async (activityData, userId) => {
+  const { activity_type, value, date } = activityData;
+  
+  const query = `
+    INSERT INTO activities (activity_type, value, date, user_id) 
+    VALUES ($1, $2, $3, $4) 
+    RETURNING *;
+  `;
+  // Pass userId as the 4th value
+  const result = await pool.query(query, [activity_type, value, date, userId]);
   return result.rows[0];
 };
 
@@ -87,10 +99,10 @@ const addAuditLog = async (log) => {
 };
 
 // Get historical emission trends (monthly aggregated)
-const getEmissionTrends = async (year = null) => {
+const getEmissionTrends = async (year = null, userId = null) => {
   try {
     const currentYear = year || new Date().getFullYear();
-    const result = await pool.query(`
+    let query = `
       SELECT 
         TO_CHAR(TO_DATE(date, 'YYYY-MM-DD'), 'YYYY-MM') as month,
         activity_type,
@@ -98,10 +110,19 @@ const getEmissionTrends = async (year = null) => {
         COUNT(*) as activity_count
       FROM activities 
       WHERE date LIKE $1
+    `;
+    let values = [`${currentYear}%`];
+    if (userId) {
+      query += ` AND user_id = $2`;
+      values.push(userId);
+    }
+
+    // Finish with the grouping
+    query += `
       GROUP BY TO_CHAR(TO_DATE(date, 'YYYY-MM-DD'), 'YYYY-MM'), activity_type
       ORDER BY month
-    `, [`${currentYear}%`]);
-    
+    `;
+    const result = await pool.query(query, values);
     return result.rows;
   } catch (error) {
     console.error('Error fetching emission trends:', error);
@@ -110,9 +131,9 @@ const getEmissionTrends = async (year = null) => {
 };
 
 // Get emission breakdown by scope
-const getEmissionBreakdown = async () => {
+const getEmissionBreakdown = async (userId = null) => {
   try {
-    const result = await pool.query(`
+    let query = `
       SELECT 
         ef.scope,
         ef.activity_type,
@@ -120,10 +141,18 @@ const getEmissionBreakdown = async () => {
         SUM(a.value * ef.factor) as total_emission
       FROM activities a
       JOIN emission_factors ef ON a.activity_type = ef.activity_type
+    `;
+    let values = [];
+    // Apply the security lock using alias 'a' for the activities table
+    if (userId) {
+      query += ` WHERE a.user_id = $1`;
+      values.push(userId);
+    }
+    query += `
       GROUP BY ef.scope, ef.activity_type
       ORDER BY ef.scope, total_emission DESC
-    `);
-    
+    `;
+    const result = await pool.query(query, values);
     return result.rows;
   } catch (error) {
     console.error('Error fetching emission breakdown:', error);
@@ -132,20 +161,26 @@ const getEmissionBreakdown = async () => {
 };
 
 // Get AI predictions data
-const getAIPredictions = async () => {
+const getAIPredictions = async (userId = null) => {
   try {
-    // Get last 6 months of data for prediction
-    const result = await pool.query(`
+    let query = `
       SELECT 
         TO_CHAR(TO_DATE(date, 'YYYY-MM-DD'), 'YYYY-MM') as month,
         SUM(value) as total_value,
         COUNT(*) as activity_count
       FROM activities 
+    `;
+    let values = [];
+    if (userId) {
+      query += ` WHERE user_id = $1`;
+      values.push(userId);
+    }
+    query += `
       GROUP BY TO_CHAR(TO_DATE(date, 'YYYY-MM-DD'), 'YYYY-MM')
       ORDER BY month DESC
       LIMIT 6
-    `);
-    
+    `;
+    const result = await pool.query(query, values);
     return result.rows;
   } catch (error) {
     console.error('Error fetching AI predictions data:', error);
@@ -154,9 +189,9 @@ const getAIPredictions = async () => {
 };
 
 // Get dashboard summary with all required data
-const getDashboardSummary = async () => {
+const getDashboardSummary = async (userId = null) => {
   try {
-    const activityData = await getActivityData();
+    const activityData = await getActivityData(userId);
     const emissionFactors = await getEmissionFactors();
     
     // Calculate totals by scope
@@ -182,9 +217,9 @@ const getDashboardSummary = async () => {
 };
 
 // Get report summary with real emission data
-const getReportSummary = async () => {
+const getReportSummary = async (userId = null) => {
   try {
-    const activityData = await getActivityData();
+    const activityData = await getActivityData(userId);
     const emissionFactors = await getEmissionFactors();
     
     // Calculate totals by scope

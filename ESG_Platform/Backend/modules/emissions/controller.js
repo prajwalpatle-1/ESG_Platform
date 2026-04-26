@@ -41,7 +41,9 @@ async function predictScope3(req, res) {
 
 async function getAnomalies(req, res) {
   try {
-    const anomalies = await detectScope3Anomalies();
+    const isAdmin = req.user.role === 'admin';
+    const userIdToFetch = isAdmin ? null : req.user.id;
+    const anomalies = await detectScope3Anomalies(userIdToFetch);
     res.json(anomalies);
   } catch (error) {
     console.error(error);
