@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
-import { getDashboard, socket, predictScope3Emission, getEmissionAnomalies, getEmissionTrends, getEmissionBreakdown, getAIPredictions } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
+import { getDashboard, getUsersList, socket, predictScope3Emission, getEmissionAnomalies, getEmissionTrends, getEmissionBreakdown, getAIPredictions } from "../services/api";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF6B6B', '#4ECDC4'];
+
+const SCOPE_LABELS = {
+  'Scope 1': 'Scope 1 – Direct Emissions',
+  'Scope 2': 'Scope 2 – Purchased Energy',
+  'Scope 3': 'Scope 3 – Value Chain',
+};
 
 // GHG Emission Factors (kg CO2e per unit)
 const EMISSION_FACTORS = {
@@ -13,11 +20,13 @@ const EMISSION_FACTORS = {
   flight: 0.255,
   logistics: 0.62,
   supplier: 0.15,
+  e_waste: 1.2,
   waste: 1.2,
   water: 0.344,
 };
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [prediction, setPrediction] = useState(null);
   const [anomalies, setAnomalies] = useState([]);
@@ -30,9 +39,14 @@ export default function Dashboard() {
   const [emissionBreakdown, setEmissionBreakdown] = useState([]);
   const [aiPredictions, setAIPredictions] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
+  const [users, setUsers] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+
+  const isAdmin = user?.role === 'admin';
+  const companyLabel = data?.company || (isAdmin ? 'Global Aggregate' : 'Your Organization');
 
   const fetchData = () => {
-    getDashboard()
+    getDashboard(isAdmin ? selectedUserId : null)
       .then(res => setData(res.data))
       .catch(err => console.error('Error fetching dashboard data:', err));
   };
@@ -48,9 +62,9 @@ export default function Dashboard() {
     setLoadingAnalytics(true);
     try {
       const [trendsRes, breakdownRes, predictionsRes] = await Promise.all([
-        getEmissionTrends(),
-        getEmissionBreakdown(),
-        getAIPredictions()
+        getEmissionTrends(isAdmin ? selectedUserId : null),
+        getEmissionBreakdown(isAdmin ? selectedUserId : null),
+        getAIPredictions(isAdmin ? selectedUserId : null)
       ]);
       
       if (trendsRes.data?.length > 0) {
@@ -139,6 +153,12 @@ export default function Dashboard() {
     fetchAnomalies();
     fetchAnalyticsData();
 
+    if (isAdmin) {
+      getUsersList()
+        .then(res => setUsers(res.data))
+        .catch(err => console.error('Error fetching users list:', err));
+    }
+
     socket.on('activityAdded', () => {
       fetchData();
       fetchAnomalies();
@@ -148,7 +168,7 @@ export default function Dashboard() {
     return () => {
       socket.off('activityAdded');
     };
-  }, []);
+  }, [selectedUserId, isAdmin]);
 
   useEffect(() => {
     if (data) {
@@ -194,9 +214,9 @@ export default function Dashboard() {
   }
 
   const pieData = [
-    { name: "Scope 1", value: data.totals["Scope 1"] },
-    { name: "Scope 2", value: data.totals["Scope 2"] },
-    { name: "Scope 3", value: data.totals["Scope 3"] }
+    { name: SCOPE_LABELS["Scope 1"], value: data.totals["Scope 1"] },
+    { name: SCOPE_LABELS["Scope 2"], value: data.totals["Scope 2"] },
+    { name: SCOPE_LABELS["Scope 3"], value: data.totals["Scope 3"] }
   ];
 
   // Monthly trend data for AI prediction
@@ -222,8 +242,26 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {isAdmin && (
+        <div className="bg-white rounded-lg shadow-md p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Admin company view</h2>
+            <p className="text-gray-600">Choose a company to see its dashboard, or leave blank for global aggregate.</p>
+          </div>
+          <select
+            value={selectedUserId}
+            onChange={(e) => setSelectedUserId(e.target.value)}
+            className="max-w-md w-full rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none"
+          >
+            <option value="">Global Aggregate</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>{u.name || u.email}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">ESG Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{isAdmin ? `${companyLabel} Dashboard` : 'ESG Dashboard'}</h1>
         <p className="text-gray-600">Monitor your environmental impact and sustainability metrics</p>
       </div>
 
@@ -280,7 +318,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {Object.entries(data.totals).map(([scope, value]) => (
           <div key={scope} className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">{scope}</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">{SCOPE_LABELS[scope] || scope}</h3>
             <p className="text-3xl font-bold text-green-600">{value.toFixed(2)}</p>
             <p className="text-sm text-gray-500">tons CO2e</p>
           </div>

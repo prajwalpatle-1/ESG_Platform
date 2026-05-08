@@ -22,7 +22,7 @@ const scope2Schema = z.object({
 });
 
 const scope3Schema = z.object({
-  scope3Type: z.enum(["Transportation", "Purchased Goods", "Spend-Based", "Travel"]),
+  scope3Type: z.enum(["Transportation", "Purchased Goods", "Spend-Based", "Travel", "E-Waste"]),
   distance: z.number().optional(),
   transportMode: z.string().optional(),
   quantityTransported: z.number().optional(),
@@ -32,6 +32,8 @@ const scope3Schema = z.object({
   amountSpent: z.number().optional(),
   category: z.string().optional(),
   travelType: z.string().optional(),
+  eWasteType: z.string().optional(),
+  eWasteWeight: z.number().optional(),
   date: z.string().min(1, "Date is required")
 });
 
@@ -46,10 +48,9 @@ export default function EmissionForm() {
   const onSubmitScope1 = async (data) => {
     setIsSubmitting(true);
     try {
-      const calculatedEmission = data.quantityConsumed * 2.31;
       await axios.post("/api/activities", {
         activity_type: `scope1_${data.fuelType}`,
-        value: calculatedEmission,
+        value: data.quantityConsumed,
         scope: "Scope 1",
         fuelType: data.fuelType,
         sourceType: data.sourceType,
@@ -71,10 +72,9 @@ export default function EmissionForm() {
   const onSubmitScope2 = async (data) => {
     setIsSubmitting(true);
     try {
-      const calculatedEmission = data.electricityConsumed * 0.82;
       await axios.post("/api/activities", {
         activity_type: "scope2_electricity",
-        value: calculatedEmission,
+        value: data.electricityConsumed,
         scope: "Scope 2",
         energySource: data.energySource,
         location: data.location,
@@ -95,20 +95,22 @@ export default function EmissionForm() {
   const onSubmitScope3 = async (data) => {
     setIsSubmitting(true);
     try {
-      let calculatedEmission = 0;
+      let activityValue = 0;
       if (data.scope3Type === "Transportation") {
-        calculatedEmission = data.distance * data.quantityTransported * 0.12;
+        activityValue = data.distance * data.quantityTransported;
       } else if (data.scope3Type === "Purchased Goods") {
-        calculatedEmission = data.quantity * 0.15;
+        activityValue = data.quantity;
       } else if (data.scope3Type === "Spend-Based") {
-        calculatedEmission = data.amountSpent * 0.0001;
+        activityValue = data.amountSpent;
       } else if (data.scope3Type === "Travel") {
-        calculatedEmission = data.distance * 0.1;
+        activityValue = data.distance;
+      } else if (data.scope3Type === "E-Waste") {
+        activityValue = data.eWasteWeight;
       }
       
       await axios.post("/api/activities", {
         activity_type: `scope3_${data.scope3Type}`,
-        value: calculatedEmission,
+        value: activityValue,
         scope: "Scope 3",
         ...data
       }, {
@@ -373,6 +375,7 @@ export default function EmissionForm() {
               <option value="Purchased Goods">🏭 Purchased Goods / Materials</option>
               <option value="Spend-Based">💰 Spend-Based</option>
               <option value="Travel">✈️ Travel / Misc</option>
+              <option value="E-Waste">🗑️ E-Waste Recycling / Disposal</option>
             </select>
             {scope3Form.formState.errors.scope3Type && (
               <p className="mt-1 text-sm text-red-600">{scope3Form.formState.errors.scope3Type.message}</p>
@@ -521,6 +524,34 @@ export default function EmissionForm() {
                   {...scope3Form.register("distance", { valueAsNumber: true })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="e.g., 500"
+                />
+              </div>
+            </div>
+          )}
+
+          {scope3Form.watch("scope3Type") === "E-Waste" && (
+            <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">E-Waste Category *</label>
+                <select
+                  {...scope3Form.register("eWasteType")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select category</option>
+                  <option value="Electronics">Electronics</option>
+                  <option value="Batteries">Batteries</option>
+                  <option value="Plastic Components">Plastic Components</option>
+                  <option value="Mixed Waste">Mixed Waste</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Waste Weight (tons) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...scope3Form.register("eWasteWeight", { valueAsNumber: true })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., 0.5"
                 />
               </div>
             </div>

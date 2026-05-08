@@ -14,6 +14,7 @@ export default function Layout({ children }) {
     { path: '/emissions', label: 'Emissions', icon: '🌱' },
     { path: '/upload', label: 'Upload', icon: '📁' },
     { path: '/scenario', label: 'Scenario', icon: '🔮' },
+    { path: '/company-reports', label: 'Company Reports', icon: '🏢', roles: ['admin'] },
     { path: '/suppliers', label: 'Suppliers', icon: '🏢', roles: ['admin'] },
     { path: '/report', label: 'Report', icon: '📋' },
   ];

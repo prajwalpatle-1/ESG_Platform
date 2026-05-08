@@ -31,6 +31,7 @@ const {
   addActivity, 
   addSupplier, 
   addAuditLog,
+  getUsers,
   getEmissionTrends,
   getEmissionBreakdown,
   getAIPredictions,
@@ -53,17 +54,19 @@ router.post("/signup", signup);
 router.get("/dashboard", verifyToken, async (req, res) => {
   try {
     const isAdmin = req.user.role === 'admin';
-    // If they are admin, fetch all (null). If normal user, fetch only theirs!
-    const userIdToFetch = isAdmin ? null : req.user.id;
+    const targetUserId = isAdmin && req.query.userId ? req.query.userId : (isAdmin ? null : req.user.id);
 
-    // Pass the ID to getActivityData!
-    const activityData = await getActivityData(userIdToFetch);
+    const activityData = await getActivityData(targetUserId);
     const calculated = await calculateAll(activityData);
     const totals = calculateTotals(calculated);
+    const dashboardSummary = await getDashboardSummary(targetUserId);
 
     res.json({
+      company: dashboardSummary.company,
       records: calculated,
-      totals
+      totals,
+      activityCount: dashboardSummary.activityCount,
+      lastUpdated: dashboardSummary.lastUpdated
     });
   } catch (error) {
     console.error("Dashboard Error:", error);
@@ -155,6 +158,16 @@ router.get("/suppliers", verifyToken, authorize(["admin"]), async (req, res) => 
   try {
     const suppliers = await getSuppliers();
     res.json(suppliers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.get("/users/list", verifyToken, authorize(["admin"]), async (req, res) => {
+  try {
+    const users = await getUsers();
+    res.json(users.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role })));
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal server error" });
@@ -298,12 +311,12 @@ router.get("/emissions/anomalies", verifyToken, getAnomalies);
 // Dashboard analytics endpoints
 router.get("/dashboard/emissions-trends", verifyToken, async (req, res) => {
   try {
-    const { year } = req.query;
+    const { year, userId } = req.query;
     const isAdmin = req.user.role === 'admin';
-    const userIdToFetch = isAdmin ? null : req.user.id; // <-- ADD THIS
+    const userIdToFetch = isAdmin ? (userId || null) : req.user.id;
 
-    // Pass the ID to the helper!
     const trends = await getEmissionTrends(year, userIdToFetch);
+    const emissionFactors = await getEmissionFactors();
     
     // Transform data for frontend
     const monthlyData = {};
@@ -338,10 +351,10 @@ router.get("/dashboard/emissions-trends", verifyToken, async (req, res) => {
 
 router.get("/dashboard/emissions-breakdown", verifyToken, async (req, res) => {
   try {
+    const { userId } = req.query;
     const isAdmin = req.user.role === 'admin';
-    const userIdToFetch = isAdmin ? null : req.user.id; // <-- ADD THIS
+    const userIdToFetch = isAdmin ? (userId || null) : req.user.id;
 
-    // Pass the ID to the helper!
     const breakdown = await getEmissionBreakdown(userIdToFetch);
     
     // Group by scope
@@ -372,8 +385,9 @@ router.get("/dashboard/emissions-breakdown", verifyToken, async (req, res) => {
 
 router.get("/dashboard/ai-predictions", verifyToken, async (req, res) => {
   try {
+    const { userId } = req.query;
     const isAdmin = req.user.role === 'admin';
-    const userIdToFetch = isAdmin ? null : req.user.id; // <-- ADD THIS
+    const userIdToFetch = isAdmin ? (userId || null) : req.user.id;
 
     const predictions = await getAIPredictions(userIdToFetch);
     

@@ -15,6 +15,7 @@ const UploadExcel = lazy(() => import("./components/UploadExcel"));
 const Scenario = lazy(() => import("./pages/Scenario"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
 const Report = lazy(() => import("./pages/Report"));
+const CompanyReports = lazy(() => import("./pages/CompanyReports"));
 
 function App() {
   return (
@@ -64,6 +65,14 @@ function App() {
                   <ProtectedRoute roles={['admin']}>
                     <Layout>
                       <Suppliers />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+
+                <Route path="/company-reports" element={
+                  <ProtectedRoute roles={['admin']}>
+                    <Layout>
+                      <CompanyReports />
                     </Layout>
                   </ProtectedRoute>
                 } />

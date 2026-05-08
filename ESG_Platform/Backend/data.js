@@ -11,6 +11,11 @@ const getUserByEmail = async (email) => {
   return result.rows[0];
 };
 
+const getUserById = async (id) => {
+  const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+  return result.rows[0];
+};
+
 const createUser = async (email, password, name = '', role = 'user') => {
   const hashedPassword = await bcrypt.hash(password, 10);
   const result = await pool.query(
@@ -24,12 +29,26 @@ const verifyPassword = async (plainPassword, hashedPassword) => {
   return await bcrypt.compare(plainPassword, hashedPassword);
 };
 
+const DEFAULT_EMISSION_FACTORS = {
+  scope3_eWaste: { factor: 1.2, scope: 'Scope 3' },
+  scope3_Transportation: { factor: 0.12, scope: 'Scope 3' },
+  scope3_Purchased Goods: { factor: 0.15, scope: 'Scope 3' },
+  scope3_Spend-Based: { factor: 0.0001, scope: 'Scope 3' },
+  scope3_Travel: { factor: 0.1, scope: 'Scope 3' },
+  scope1_Diesel: { factor: 2.68, scope: 'Scope 1' },
+  scope1_Petrol: { factor: 2.31, scope: 'Scope 1' },
+  scope1_LPG: { factor: 1.5, scope: 'Scope 1' },
+  scope1_Natural Gas: { factor: 2.0, scope: 'Scope 1' },
+  scope2_electricity: { factor: 0.82, scope: 'Scope 2' }
+};
+
 const getEmissionFactors = async () => {
   const result = await pool.query('SELECT * FROM emission_factors');
-  return result.rows.reduce((acc, row) => {
+  const emissionFactors = result.rows.reduce((acc, row) => {
     acc[row.activity_type] = { factor: parseFloat(row.factor), scope: row.scope };
     return acc;
   }, {});
+  return { ...DEFAULT_EMISSION_FACTORS, ...emissionFactors };
 };
 
 const getActivityData = async (userId = null) => {
@@ -133,27 +152,33 @@ const getEmissionTrends = async (year = null, userId = null) => {
 // Get emission breakdown by scope
 const getEmissionBreakdown = async (userId = null) => {
   try {
-    let query = `
-      SELECT 
-        ef.scope,
-        ef.activity_type,
-        SUM(a.value) as total_value,
-        SUM(a.value * ef.factor) as total_emission
-      FROM activities a
-      JOIN emission_factors ef ON a.activity_type = ef.activity_type
-    `;
-    let values = [];
-    // Apply the security lock using alias 'a' for the activities table
-    if (userId) {
-      query += ` WHERE a.user_id = $1`;
-      values.push(userId);
-    }
-    query += `
-      GROUP BY ef.scope, ef.activity_type
-      ORDER BY ef.scope, total_emission DESC
-    `;
-    const result = await pool.query(query, values);
-    return result.rows;
+    const activityData = await getActivityData(userId);
+    const emissionFactors = await getEmissionFactors();
+    const breakdownMap = {};
+
+    activityData.forEach(activity => {
+      const factor = emissionFactors[activity.activity_type];
+      if (!factor) return;
+
+      if (!breakdownMap[activity.activity_type]) {
+        breakdownMap[activity.activity_type] = {
+          scope: factor.scope,
+          activity_type: activity.activity_type,
+          total_value: 0,
+          total_emission: 0
+        };
+      }
+
+      breakdownMap[activity.activity_type].total_value += parseFloat(activity.value);
+      breakdownMap[activity.activity_type].total_emission += parseFloat(activity.value) * factor.factor;
+    });
+
+    return Object.values(breakdownMap).sort((a, b) => {
+      if (a.scope === b.scope) {
+        return b.total_emission - a.total_emission;
+      }
+      return a.scope.localeCompare(b.scope);
+    });
   } catch (error) {
     console.error('Error fetching emission breakdown:', error);
     return [];
@@ -194,6 +219,9 @@ const getDashboardSummary = async (userId = null) => {
     const activityData = await getActivityData(userId);
     const emissionFactors = await getEmissionFactors();
     
+    const user = userId ? await getUserById(userId) : null;
+    const company = user ? (user.name || user.email) : 'Global Aggregate';
+
     // Calculate totals by scope
     const scopeTotals = { 'Scope 1': 0, 'Scope 2': 0, 'Scope 3': 0 };
     
@@ -206,13 +234,14 @@ const getDashboardSummary = async (userId = null) => {
     }
     
     return {
+      company,
       totals: scopeTotals,
       activityCount: activityData.length,
       lastUpdated: activityData.length > 0 ? activityData[0].created_at : null
     };
   } catch (error) {
     console.error('Error fetching dashboard summary:', error);
-    return { totals: { 'Scope 1': 0, 'Scope 2': 0, 'Scope 3': 0 }, activityCount: 0 };
+    return { company: 'Global Aggregate', totals: { 'Scope 1': 0, 'Scope 2': 0, 'Scope 3': 0 }, activityCount: 0 };
   }
 };
 
@@ -271,8 +300,11 @@ const getReportSummary = async (userId = null) => {
     const quarter = Math.floor((now.getMonth() + 3) / 3);
     const timeframe = `Q${quarter} ${now.getFullYear()}`;
     
+    const user = userId ? await getUserById(userId) : null;
+    const company = user ? (user.name || user.email) : 'Global Aggregate';
+
     return {
-      company: 'Your Organization',
+      company,
       timeframe,
       totals: {
         'Scope 1': parseFloat(scopeTotals['Scope 1'].toFixed(2)),
@@ -288,7 +320,7 @@ const getReportSummary = async (userId = null) => {
   } catch (error) {
     console.error('Error fetching report summary:', error);
     return {
-      company: 'Your Organization',
+      company: 'Global Aggregate',
       timeframe: 'Q1 2026',
       totals: { 'Scope 1': 0, 'Scope 2': 0, 'Scope 3': 0 },
       totalEmissions: 0,
@@ -305,6 +337,7 @@ const getReportSummary = async (userId = null) => {
 module.exports = {
   getUsers,
   getUserByEmail,
+  getUserById,
   createUser,
   verifyPassword,
   getEmissionFactors,

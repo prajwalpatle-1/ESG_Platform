@@ -27,17 +27,20 @@ export const socket = io("http://localhost:5000");
 
 // API ENDPOINTS (Now using apiClient!)
 
-export const getDashboard = () => apiClient.get(`/dashboard`);
+export const getDashboard = (userId = null) => {
+  const params = userId ? { userId } : {};
+  return apiClient.get(`/dashboard`, { params });
+};
 
 export const getSuppliers = () => apiClient.get(`/suppliers`);
 
 export const simulateScenario = (percent, scenarioId) =>
   apiClient.post(`/scenario`, { percent, scenarioId });
 
-export const getReport = (userId=null) => {
+export const getReport = (userId = null) => {
   const params = userId ? { userId } : {};
   return apiClient.get(`/report`, { params });
-}
+};
 export const getUsersList = () => apiClient.get(`/users/list`);
 
 export const addActivity = (activity) =>
@@ -53,11 +56,11 @@ export const getEmissionAnomalies = () =>
   apiClient.get(`/emissions/anomalies`);
 
 // Dashboard analytics API
-export const getEmissionTrends = (year) => 
-  apiClient.get(`/dashboard/emissions-trends`, { params: { year } });
+export const getEmissionTrends = (userId, year) => 
+  apiClient.get(`/dashboard/emissions-trends`, { params: { userId, year } });
 
-export const getEmissionBreakdown = () => 
-  apiClient.get(`/dashboard/emissions-breakdown`);
+export const getEmissionBreakdown = (userId) => 
+  apiClient.get(`/dashboard/emissions-breakdown`, { params: { userId } });
 
-export const getAIPredictions = () => 
-  apiClient.get(`/dashboard/ai-predictions`);
+export const getAIPredictions = (userId) => 
+  apiClient.get(`/dashboard/ai-predictions`, { params: { userId } });

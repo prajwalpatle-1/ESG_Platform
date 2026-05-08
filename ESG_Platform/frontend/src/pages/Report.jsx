@@ -1,14 +1,22 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import { getReport, getUsersList, socket } from "../services/api";
 
+const SCOPE_LABELS = {
+  'Scope 1': 'Scope 1 – Direct Emissions',
+  'Scope 2': 'Scope 2 – Purchased Energy',
+  'Scope 3': 'Scope 3 – Value Chain',
+};
+
 export default function Report() {
+  const { user } = useAuth();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState("");
 
-  const currentUserRole = localStorage.getItem("role") || "user"; 
+  const currentUserRole = user?.role || "user";
   const isAdmin = currentUserRole === "admin";
 
   const fetchReport = (userIdToFetch) => {
@@ -41,7 +49,7 @@ export default function Report() {
     return () => {
       socket.off('activityAdded');
     };
-  }, [selectedUserId,isAdmin]);
+  }, [selectedUserId, isAdmin]);
 
   if (loading) {
     return (
@@ -63,9 +71,9 @@ export default function Report() {
     (report.totals ? Object.values(report.totals).reduce((sum, v) => sum + v, 0) : 0);
 
   const chartData = report.totals ? [
-    { label: 'Scope 1', value: report.totals['Scope 1'] || 0, color: 'bg-rose-500' },
-    { label: 'Scope 2', value: report.totals['Scope 2'] || 0, color: 'bg-blue-500' },
-    { label: 'Scope 3', value: report.totals['Scope 3'] || 0, color: 'bg-green-500' },
+    { label: SCOPE_LABELS['Scope 1'], value: report.totals['Scope 1'] || 0, color: 'bg-rose-500' },
+    { label: SCOPE_LABELS['Scope 2'], value: report.totals['Scope 2'] || 0, color: 'bg-blue-500' },
+    { label: SCOPE_LABELS['Scope 3'], value: report.totals['Scope 3'] || 0, color: 'bg-green-500' },
   ] : [];
 
   return (
@@ -96,14 +104,11 @@ export default function Report() {
           <div>
             <p className="text-sm font-semibold text-green-600 dark:text-green-400">ESG Reporting</p>
             
-            {/* 2. UPDATED: DYNAMIC TITLE */}
             <h1 className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
-              {isAdmin && selectedUserId 
-                ? "Client sustainability scorecard" 
-                : "Executive sustainability scorecard"}
+              {isAdmin && selectedUserId ? `Company Report: ${report?.company || 'Selected Company'}` : `${report?.company || 'Your Organization'} Report`}
             </h1>
             <p className="mt-3 text-gray-600 dark:text-gray-400 max-w-2xl">
-              A snapshot of your emissions performance and priority actions for the upcoming quarter.
+              A snapshot of sustainability performance for {isAdmin && selectedUserId ? report?.company : 'your organization'}.
             </p>
           </div>
           <div className="rounded-3xl bg-gray-50 p-5 text-right dark:bg-gray-950">

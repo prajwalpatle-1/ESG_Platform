@@ -8,6 +8,8 @@ export default function AddEmission(){
     quantityConsumed: "",
     electricityConsumed: "",
     energySource: "Grid",
+    eWasteType: "Electronics",
+    eWasteQuantity: "",
     date: new Date().toISOString().split('T')[0]
   });
   const [loading, setLoading] = useState(false);
@@ -18,20 +20,43 @@ export default function AddEmission(){
   };
 
   const submit = async () => {
-    if (!formData.quantityConsumed && !formData.electricityConsumed) {
-      alert("Please enter a quantity");
+    if (scope === "scope1" && !formData.quantityConsumed) {
+      alert("Please enter a fuel quantity");
+      return;
+    }
+    if (scope === "scope2" && !formData.electricityConsumed) {
+      alert("Please enter electricity consumption");
+      return;
+    }
+    if (scope === "scope3" && !formData.eWasteQuantity) {
+      alert("Please enter the e-waste quantity");
       return;
     }
 
     setLoading(true);
     try {
-      const quantity = scope === "scope1" ? formData.quantityConsumed : formData.electricityConsumed;
-      const activity_type = scope === "scope1" ? `quick_fuel_${formData.fuelType}` : "quick_electricity";
+      let activity_type;
+      let value;
+      let scopeLabel;
+
+      if (scope === "scope1") {
+        activity_type = `quick_fuel_${formData.fuelType}`;
+        value = parseFloat(formData.quantityConsumed);
+        scopeLabel = "Scope 1";
+      } else if (scope === "scope2") {
+        activity_type = "quick_electricity";
+        value = parseFloat(formData.electricityConsumed);
+        scopeLabel = "Scope 2";
+      } else {
+        activity_type = "scope3_eWaste";
+        value = parseFloat(formData.eWasteQuantity);
+        scopeLabel = "Scope 3";
+      }
       
       await axios.post("/api/activities", {
         activity_type,
-        value: parseFloat(quantity),
-        scope: scope === "scope1" ? "Scope 1" : "Scope 2",
+        value,
+        scope: scopeLabel,
         date: formData.date
       }, {
         headers: {
@@ -40,7 +65,7 @@ export default function AddEmission(){
       });
 
       alert("Emission data added successfully!");
-      setFormData({ fuelType: "Diesel", quantityConsumed: "", electricityConsumed: "", energySource: "Grid", date: new Date().toISOString().split('T')[0] });
+      setFormData({ fuelType: "Diesel", quantityConsumed: "", electricityConsumed: "", energySource: "Grid", eWasteType: "Electronics", eWasteQuantity: "", date: new Date().toISOString().split('T')[0] });
     } catch (error) {
       console.error(error);
       alert("Error adding emission data");
@@ -73,6 +98,16 @@ export default function AddEmission(){
           }`}
         >
           🟡 Scope 2
+        </button>
+        <button
+          onClick={() => setScope("scope3")}
+          className={`flex-1 py-2 px-3 rounded-md font-medium transition ${
+            scope === "scope3" 
+              ? "bg-blue-600 text-white" 
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
+        >
+          🔵 Scope 3
         </button>
       </div>
 
@@ -115,7 +150,7 @@ export default function AddEmission(){
             />
           </div>
         </div>
-      ) : (
+      ) : scope === "scope2" ? (
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Electricity (kWh)</label>
@@ -140,6 +175,34 @@ export default function AddEmission(){
               <option>Solar</option>
               <option>Renewable</option>
             </select>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">E-Waste Category</label>
+            <select
+              name="eWasteType"
+              value={formData.eWasteType}
+              onChange={handleInputChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500"
+            >
+              <option>Electronics</option>
+              <option>Batteries</option>
+              <option>Plastic Components</option>
+              <option>Mixed Waste</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">E-Waste Weight (tons)</label>
+            <input
+              type="number"
+              name="eWasteQuantity"
+              value={formData.eWasteQuantity}
+              onChange={handleInputChange}
+              placeholder="e.g., 0.5"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500"
+            />
           </div>
         </div>
       )}
