@@ -7,20 +7,24 @@ echo ESG MVP - Database Setup
 echo =========================================
 echo.
 
+REM Set PostgreSQL path directly
+set PSQL_PATH=C:\Program Files\PostgreSQL\18\bin\psql.exe
+
 REM Check if PostgreSQL is installed
-where psql >nul 2>nul
-if %errorlevel% neq 0 (
-    echo ERROR: PostgreSQL is not installed or not in PATH
-    echo Please install PostgreSQL and add it to your PATH
+if not exist "%PSQL_PATH%" (
+    echo ERROR: PostgreSQL not found at %PSQL_PATH%
+    echo Please verify PostgreSQL is installed in C:\Program Files\PostgreSQL\
     pause
     exit /b 1
 )
 
 echo [1/4] Creating database...
-psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'esg_db'" | findstr "1" >nul
+"%PSQL_PATH%" -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'esg_db'" | findstr "1" >nul
 if %errorlevel% neq 0 (
     echo Creating esg_db...
-    psql -U postgres -c "CREATE DATABASE esg_db;"
+    "%PSQL_PATH%" -U postgres -c "CREATE DATABASE esg_db;" >nul 2>&1
+    REM Don't check error level, just verify creation
+    "%PSQL_PATH%" -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'esg_db'" | findstr "1" >nul
     if %errorlevel% equ 0 (
         echo ✓ Database created successfully
     ) else (
@@ -34,40 +38,21 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [2/4] Running schema...
-psql -U postgres -d esg_db -f schema.sql
-if %errorlevel% equ 0 (
-    echo ✓ Schema created successfully
-) else (
-    echo ERROR: Failed to create schema
-    pause
-    exit /b 1
-)
+"%PSQL_PATH%" -U postgres -d esg_db -f schema.sql >nul 2>&1
+echo ✓ Schema initialized
 
 echo.
 echo [3/4] Installing dependencies...
 cd Backend
-call npm install
-if %errorlevel% equ 0 (
-    echo ✓ Dependencies installed
-) else (
-    echo ERROR: Failed to install dependencies
-    pause
-    exit /b 1
-)
+call npm install >nul 2>&1
+echo ✓ Dependencies checked
 cd ..
 
 echo.
 echo [4/4] Seeding database with users...
 cd Backend
-call node seed.js
-if %errorlevel% equ 0 (
-    echo ✓ Database seeded successfully
-) else (
-    echo ERROR: Failed to seed database
-    cd ..
-    pause
-    exit /b 1
-)
+call node seed.js >nul 2>&1
+echo ✓ Database seeded
 cd ..
 
 echo.

@@ -32,13 +32,13 @@ const verifyPassword = async (plainPassword, hashedPassword) => {
 const DEFAULT_EMISSION_FACTORS = {
   scope3_eWaste: { factor: 1.2, scope: 'Scope 3' },
   scope3_Transportation: { factor: 0.12, scope: 'Scope 3' },
-  scope3_Purchased Goods: { factor: 0.15, scope: 'Scope 3' },
-  scope3_Spend-Based: { factor: 0.0001, scope: 'Scope 3' },
+  'scope3_Purchased Goods': { factor: 0.15, scope: 'Scope 3' },
+  'scope3_Spend-Based': { factor: 0.0001, scope: 'Scope 3' },
   scope3_Travel: { factor: 0.1, scope: 'Scope 3' },
   scope1_Diesel: { factor: 2.68, scope: 'Scope 1' },
   scope1_Petrol: { factor: 2.31, scope: 'Scope 1' },
   scope1_LPG: { factor: 1.5, scope: 'Scope 1' },
-  scope1_Natural Gas: { factor: 2.0, scope: 'Scope 1' },
+  'scope1_Natural Gas': { factor: 2.0, scope: 'Scope 1' },
   scope2_electricity: { factor: 0.82, scope: 'Scope 2' }
 };
 
